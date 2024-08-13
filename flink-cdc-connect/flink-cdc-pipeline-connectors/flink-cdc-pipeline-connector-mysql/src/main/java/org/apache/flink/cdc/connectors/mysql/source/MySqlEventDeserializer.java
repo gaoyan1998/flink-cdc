@@ -23,6 +23,7 @@ import org.apache.flink.cdc.common.event.SchemaChangeEvent;
 import org.apache.flink.cdc.common.event.TableId;
 import org.apache.flink.cdc.connectors.mysql.source.parser.CustomMySqlAntlrDdlParser;
 import org.apache.flink.cdc.debezium.event.DebeziumEventDeserializationSchema;
+import org.apache.flink.cdc.debezium.rate.DebeziumRateLimiter;
 import org.apache.flink.cdc.debezium.table.DebeziumChangelogMode;
 
 import com.esri.core.geometry.ogc.OGCGeometry;
@@ -64,8 +65,10 @@ public class MySqlEventDeserializer extends DebeziumEventDeserializationSchema {
     private transient CustomMySqlAntlrDdlParser customParser;
 
     public MySqlEventDeserializer(
-            DebeziumChangelogMode changelogMode, boolean includeSchemaChanges) {
-        super(new MySqlSchemaDataTypeInference(), changelogMode);
+            DebeziumChangelogMode changelogMode,
+            boolean includeSchemaChanges,
+            DebeziumRateLimiter rate) {
+        super(new MySqlSchemaDataTypeInference(), changelogMode, rate);
         this.includeSchemaChanges = includeSchemaChanges;
     }
 

@@ -19,7 +19,9 @@ package org.apache.flink.cdc.connectors.mysql.source;
 
 import org.apache.flink.cdc.common.annotation.Internal;
 import org.apache.flink.cdc.common.annotation.VisibleForTesting;
+import org.apache.flink.cdc.common.configuration.Configuration;
 import org.apache.flink.cdc.common.event.Event;
+import org.apache.flink.cdc.common.pipeline.PipelineOptions;
 import org.apache.flink.cdc.common.source.DataSource;
 import org.apache.flink.cdc.common.source.EventSourceProvider;
 import org.apache.flink.cdc.common.source.FlinkSourceProvider;
@@ -27,6 +29,8 @@ import org.apache.flink.cdc.common.source.MetadataAccessor;
 import org.apache.flink.cdc.connectors.mysql.source.config.MySqlSourceConfig;
 import org.apache.flink.cdc.connectors.mysql.source.config.MySqlSourceConfigFactory;
 import org.apache.flink.cdc.connectors.mysql.source.reader.MySqlPipelineRecordEmitter;
+import org.apache.flink.cdc.debezium.rate.Rate;
+import org.apache.flink.cdc.debezium.rate.TokenRateLimiter;
 import org.apache.flink.cdc.debezium.table.DebeziumChangelogMode;
 
 /** A {@link DataSource} for mysql cdc connector. */
@@ -35,17 +39,31 @@ public class MySqlDataSource implements DataSource {
 
     private final MySqlSourceConfigFactory configFactory;
     private final MySqlSourceConfig sourceConfig;
+    private final Configuration piplineConfig;
 
     public MySqlDataSource(MySqlSourceConfigFactory configFactory) {
+        this(configFactory, new Configuration());
+    }
+
+    public MySqlDataSource(MySqlSourceConfigFactory configFactory, Configuration piplineConfig) {
         this.configFactory = configFactory;
         this.sourceConfig = configFactory.createConfig(0);
+        this.piplineConfig = piplineConfig;
     }
 
     @Override
     public EventSourceProvider getEventSourceProvider() {
+        long maxRatePeer =
+                piplineConfig
+                        .getOptional(PipelineOptions.RATE_LIMIT)
+                        .orElse(PipelineOptions.RATE_LIMIT.defaultValue());
+        TokenRateLimiter tokenRateLimiter = new TokenRateLimiter(new Rate(maxRatePeer));
+
         MySqlEventDeserializer deserializer =
                 new MySqlEventDeserializer(
-                        DebeziumChangelogMode.ALL, sourceConfig.isIncludeSchemaChanges());
+                        DebeziumChangelogMode.ALL,
+                        sourceConfig.isIncludeSchemaChanges(),
+                        tokenRateLimiter);
 
         MySqlSource<Event> source =
                 new MySqlSource<>(

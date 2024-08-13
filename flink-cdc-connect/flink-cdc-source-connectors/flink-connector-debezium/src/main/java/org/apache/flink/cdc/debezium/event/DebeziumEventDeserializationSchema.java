@@ -32,6 +32,7 @@ import org.apache.flink.cdc.common.types.DataType;
 import org.apache.flink.cdc.common.types.DecimalType;
 import org.apache.flink.cdc.common.types.RowType;
 import org.apache.flink.cdc.debezium.DebeziumDeserializationSchema;
+import org.apache.flink.cdc.debezium.rate.DebeziumRateLimiter;
 import org.apache.flink.cdc.debezium.table.DebeziumChangelogMode;
 import org.apache.flink.cdc.debezium.table.DeserializationRuntimeConverter;
 import org.apache.flink.cdc.debezium.utils.TemporalConversions;
@@ -82,14 +83,23 @@ public abstract class DebeziumEventDeserializationSchema extends SourceRecordEve
     /** Changelog Mode to use for encoding changes in Flink internal data structure. */
     protected final DebeziumChangelogMode changelogMode;
 
+    protected final DebeziumRateLimiter rateLimiter;
+
     public DebeziumEventDeserializationSchema(
-            SchemaDataTypeInference schemaDataTypeInference, DebeziumChangelogMode changelogMode) {
+            SchemaDataTypeInference schemaDataTypeInference,
+            DebeziumChangelogMode changelogMode,
+            DebeziumRateLimiter rate) {
         this.schemaDataTypeInference = schemaDataTypeInference;
         this.changelogMode = changelogMode;
+        rateLimiter = rate;
     }
 
     @Override
     public void deserialize(SourceRecord record, Collector<Event> out) throws Exception {
+        LOG.info("新数据来啦！！：" + rateLimiter.isEnable());
+        if (rateLimiter.isEnable()) {
+            LOG.info("睡眠进程。。。。。。。" + rateLimiter.acquire());
+        }
         deserialize(record).forEach(out::collect);
     }
 
